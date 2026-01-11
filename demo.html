@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrapAlert.js Demo - Accessibility Barrier Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 20px;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .content {
+            padding: 60px 40px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            font-size: 32px;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .section p {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        .demo-area {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 20px;
+        }
+
+        .demo-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        /* Keyboard Trap Demo */
+        .trap-container {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .trap-button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .trap-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .trap-button:focus {
+            outline: 3px solid #ffd700;
+            outline-offset: 2px;
+        }
+
+        /* Rage Click Demo */
+        .rage-target {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            transition: transform 0.1s;
+            user-select: none;
+        }
+
+        .rage-target:active {
+            transform: scale(0.95);
+        }
+
+        /* Interactive Elements */
+        .interactive-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 25px;
+            transition: all 0.3s;
+        }
+
+        .card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.2);
+            transform: translateY(-4px);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+
+        .card p {
+            font-size: 14px;
+            color: #666;
+            margin: 0;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .status-label {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .status-value {
+            font-size: 24px;
+            color: #ffd700;
+        }
+
+        .instructions {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .instructions ul {
+            margin-left: 20px;
+            color: #856404;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ TrapAlert.js Demo</h1>
+            <p>Experience real-time accessibility barrier detection in action</p>
+        </div>
+
+        <div class="content">
+            <div class="instructions">
+                <h3>📋 How to Test TrapAlert</h3>
+                <ul>
+                    <li><strong>Keyboard Trap:</strong> Press Tab repeatedly through the buttons below (15+ times in 30
+                        seconds) or cycle through the same 3 buttons multiple times</li>
+                    <li><strong>Rage Click:</strong> Click the red box rapidly (5+ times within 1.5 seconds)</li>
+                    <li><strong>Escape Frustration:</strong> Press the Escape key 3 times quickly</li>
+                    <li><strong>Manual Report:</strong> Press <kbd>Alt + T</kbd> to open the report sidebar anytime</li>
+                    <li><strong>Watch the Score:</strong> The frustration score (bottom-left) increases with each
+                        detected barrier</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>
+                    <div class="section-icon">⌨️</div>
+                    Keyboard Trap Simulator
+                    <span class="badge">+40 Points</span>
+                </h2>
+                <p>
+                    Tab through these buttons repeatedly to simulate a keyboard trap. TrapAlert will detect if you're
+                    stuck in a focus loop or pressing Tab excessively.
+                </p>
+                <div class="demo-area">
+                    <div class="demo-title">Try tabbing through these buttons:</div>
+                    <div class="trap-container">
+                        <button class="trap-button" id="trap-btn-1">Button 1</button>
+                        <button class="trap-button" id="trap-btn-2">Button 2</button>
+                        <button class="trap-button" id="trap-btn-3">Button 3</button>
+                        <button class="trap-button" id="trap-btn-4">Button 4</button>
+                        <button class="trap-button" id="trap-btn-5">Button 5</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>
+                    <div class="section-icon">🖱️</div>
+                    Rage Click Detector
+                    <span class="badge">+60 Points</span>
+                </h2>
+                <p>
+                    Click the box below rapidly (5+ times within 1.5 seconds) to simulate rage clicking on a
+                    non-interactive element.
+                </p>
+                <div class="demo-area">
+                    <div class="demo-title">Click this box rapidly:</div>
+                    <div class="rage-target" id="rage-box">
+                        Click me rapidly!<br>
+                        (Not a button)
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>
+                    <div class="section-icon">✅</div>
+                    Productive Behavior (Score Decay)
+                    <span class="badge">-10 Points / 10s</span>
+                </h2>
+                <p>
+                    Type in the fields below to demonstrate productive behavior. This will trigger score decay and
+                    reduce your frustration meter.
+                </p>
+                <div class="demo-area">
+                    <div class="input-group">
+                        <label for="name-input">Your Name:</label>
+                        <input type="text" id="name-input" placeholder="Type here to reduce frustration score...">
+                    </div>
+                    <div class="input-group">
+                        <label for="feedback-input">Feedback:</label>
+                        <textarea id="feedback-input" rows="4" placeholder="Share your thoughts..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>
+                    <div class="section-icon">🎯</div>
+                    Interactive Elements (Normal Behavior)
+                </h2>
+                <p>
+                    These are properly interactive elements. Clicking them won't trigger rage click detection.
+                </p>
+                <div class="interactive-grid">
+                    <div class="card">
+                        <h3>Card 1</h3>
+                        <p>This is a clickable card with proper hover states.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Card 2</h3>
+                        <p>Interactive elements help reduce frustration.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Card 3</h3>
+                        <p>Good UX patterns are automatically recognized.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status-bar">
+        <div class="status-label">Current Frustration Score:</div>
+        <div class="status-value" id="score-display">0</div>
+    </div>
+
+    <!-- Load TrapAlert SDK -->
+    <script src="dist/trapalert.umd.js"></script>
+
+    <!-- Initialize TrapAlert -->
+    <script>
+        // Initialize TrapAlert with configuration
+        const trapAlert = TrapAlert.init({
+            tenantId: 'demo-tenant-001',
+            collectorEndpoint: 'https://api.example.com/collect' // Replace with your endpoint
+        });
+
+        // Update score display in real-time (for demo purposes)
+        setInterval(() => {
+            if (trapAlert && trapAlert.struggleScore) {
+                const score = Math.round(trapAlert.struggleScore.get());
+                const scoreDisplay = document.getElementById('score-display');
+                if (scoreDisplay) {
+                    scoreDisplay.textContent = score;
+
+                    // Color coding
+                    if (score >= 80) {
+                        scoreDisplay.style.color = '#ff4444';
+                    } else if (score >= 50) {
+                        scoreDisplay.style.color = '#ffaa00';
+                    } else {
+                        scoreDisplay.style.color = '#ffd700';
+                    }
+                }
+            }
+        }, 500);
+
+        // Add some interactivity to demo elements
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', () => {
+                card.style.background = '#f0f7ff';
+                setTimeout(() => {
+                    card.style.background = 'white';
+                }, 200);
+            });
+        });
+
+        // Log when buttons are focused (for demo visualization)
+        document.querySelectorAll('.trap-button').forEach((btn, index) => {
+            btn.addEventListener('focus', () => {
+                console.log(`Button ${index + 1} focused`);
+            });
+        });
+    </script>
+</body>
+
+</html>
