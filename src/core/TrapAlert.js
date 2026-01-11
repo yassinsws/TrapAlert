@@ -2,6 +2,7 @@ import { StruggleScore } from './StruggleScore.js';
 import { NotificationSystem } from '../ui/NotificationSystem.js';
 import { getElementSelector, isInteractiveElement } from '../utils/dom.js';
 import { BehaviorEngine } from './BehaviorEngine.js';
+import { captureDOMSnapshot } from '../utils/dom-snapshot.js';
 
 /**
  * Main TrapAlert Class
@@ -22,6 +23,11 @@ export class TrapAlert {
         this.behaviorEngine.onTrigger = () => {
             this.lastTriggerTime = Date.now();
         };
+
+        // Recording state
+        this.mediaRecorder = null;
+        this.recordedChunks = [];
+        this.domSnapshot = null;
 
         // Watchers state
         this.focusHistory = [];
@@ -114,6 +120,111 @@ export class TrapAlert {
             () => this.handleReport(),
             () => this.handleDismiss()
         );
+
+        // Bind recording handlers
+        this.ui.onStartRecording = this.handleStartRecording.bind(this);
+        this.ui.onStopRecording = this.handleStopRecording.bind(this);
+    }
+
+    async handleStartRecording() {
+        try {
+            // 1. Capture DOM Snapshot immediately
+            this.domSnapshot = captureDOMSnapshot();
+            console.log('[TrapAlert] DOM Snapshot captured.');
+
+            // 2. Get Screen and Audio streams
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true
+            });
+
+            let combinedStream = screenStream;
+
+            try {
+                // Request audio separately to merge
+                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const tracks = [...screenStream.getVideoTracks(), ...audioStream.getAudioTracks()];
+                combinedStream = new MediaStream(tracks);
+            } catch (err) {
+                console.warn('[TrapAlert] Microphone access denied, recording screen without audio.');
+            }
+
+            // 3. Initialize MediaRecorder
+            this.recordedChunks = [];
+
+            // Check supported types
+            const mimeType = 'video/webm;codecs=vp8,opus';
+            this.mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
+
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.recordedChunks.push(event.data);
+                }
+            };
+
+            this.mediaRecorder.onstop = () => {
+                this.finalizeRecording();
+                // Stop all tracks to release hardware
+                combinedStream.getTracks().forEach(track => track.stop());
+            };
+
+            this.mediaRecorder.start();
+            this.ui.setRecordingState('recording');
+            console.log('[TrapAlert] Recording started.');
+
+            // Sync: If the user stops screen sharing via browser native UI
+            screenStream.getVideoTracks()[0].onended = () => {
+                if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                    this.mediaRecorder.stop();
+                }
+            };
+
+        } catch (err) {
+            console.error('[TrapAlert] Failed to start recording:', err);
+            alert('Feedback Recording Error: Please ensure you grant Screen and Microphone permissions.');
+        }
+    }
+
+    handleStopRecording() {
+        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+            this.mediaRecorder.stop();
+            this.ui.setRecordingState('uploading');
+        }
+    }
+
+    async finalizeRecording() {
+        const videoBlob = new Blob(this.recordedChunks, { type: 'video/webm' });
+
+        const formData = new FormData();
+        formData.append('video', videoBlob, 'feedback-recording.webm');
+        formData.append('dom', this.domSnapshot);
+        formData.append('metadata', JSON.stringify(this.getBrowserMetadata()));
+        formData.append('struggleScore', this.struggleScore.get());
+        formData.append('tenantId', this.tenantId);
+
+        console.log('[TrapAlert] Dispatching multi-modal feedback...');
+
+        try {
+            const response = await fetch(`${this.collectorEndpoint}/feedback`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                console.log('[TrapAlert] Feedback uploaded successfully.');
+                this.ui.updateMessage('Feedback sent! Our engineers will audit this snapshot immediately.');
+            } else {
+                throw new Error('Upload failed');
+            }
+        } catch (err) {
+            console.error('[TrapAlert] Feedback upload failed:', err);
+            this.ui.updateMessage('Something went wrong during upload. Please try again.');
+        } finally {
+            setTimeout(() => {
+                this.ui.setRecordingState('idle');
+                this.struggleScore.reset();
+                this.domSnapshot = null;
+            }, 3000);
+        }
     }
 
     attachListeners() {

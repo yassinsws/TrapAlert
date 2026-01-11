@@ -187,6 +187,32 @@ export class NotificationSystem {
         background: rgba(255, 255, 255, 0.2);
         transform: rotate(90deg);
       }
+
+      .trapalert-timer {
+        font-family: monospace;
+        font-size: 28px;
+        color: #ff4d4d;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 20px 0;
+      }
+
+      .trapalert-timer::before {
+        content: '';
+        width: 14px;
+        height: 14px;
+        background: #ff4d4d;
+        border-radius: 50%;
+        animation: ta-pulse 1s infinite;
+      }
+
+      @keyframes ta-pulse {
+        0% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(1.2); }
+        100% { opacity: 1; transform: scale(1); }
+      }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -208,19 +234,48 @@ export class NotificationSystem {
         <div class="trapalert-icon">🛡️</div>
         <span>TrapAlert</span>
       </div>
-      <div class="trapalert-message">
-        We've detected potential navigation barriers. Help us improve the experience for everyone.
+
+      <!-- Idle UI -->
+      <div id="idle-ui" style="display: flex; flex-direction: column;">
+        <div class="trapalert-message">
+          We've detected potential navigation barriers. Help us improve the experience for everyone.
+        </div>
+        <div class="trapalert-score">
+          <div class="trapalert-score-label">Frustration Intensity</div>
+          <div class="trapalert-score-value" id="score-display">0</div>
+        </div>
+        <button class="trapalert-button" id="start-recording-btn">
+          🎥 Record Feedback (Voice + Screen)
+        </button>
+        <button class="trapalert-button trapalert-button-secondary" id="report-btn">
+          Quick Audit Report
+        </button>
+        <button class="trapalert-button trapalert-button-secondary" id="dismiss-btn">
+          Keep Browsing
+        </button>
       </div>
-      <div class="trapalert-score">
-        <div class="trapalert-score-label">Frustration Intensity</div>
-        <div class="trapalert-score-value" id="score-display">0</div>
+
+      <!-- Recording UI -->
+      <div id="recording-ui" style="display: none; flex-direction: column; align-items: center;">
+        <div class="trapalert-timer" id="recording-timer">00:00</div>
+        <div class="trapalert-message" style="text-align: center; margin-top: 10px;">
+           Recording in progress...<br>Explain the issue while you navigate.
+        </div>
+        <button class="trapalert-button" id="stop-recording-btn" style="background: #ff4d4d; color: white; width: 100%; margin-top: 20px;">
+          ⏹️ Stop and Send
+        </button>
       </div>
-      <button class="trapalert-button" id="report-btn">
-        Submit High-Priority Report
-      </button>
-      <button class="trapalert-button trapalert-button-secondary" id="dismiss-btn">
-        Keep Browsing
-      </button>
+
+      <!-- Uploading UI -->
+      <div id="uploading-ui" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+        <div class="trapalert-icon" style="width: 60px; height: 60px; font-size: 40px; margin-bottom: 20px;">⏳</div>
+        <div class="trapalert-header" style="justify-content: center;">
+            <span>Finalizing...</span>
+        </div>
+        <div class="trapalert-message" style="text-align: center;">
+           Securely packaging your screen recording and DOM snapshot.
+        </div>
+      </div>
     `;
     this.shadowRoot.appendChild(sidebar);
 
@@ -232,6 +287,8 @@ export class NotificationSystem {
     const closeBtn = this.shadowRoot.querySelector('#ta-close');
     const reportBtn = this.shadowRoot.querySelector('#report-btn');
     const dismissBtn = this.shadowRoot.querySelector('#dismiss-btn');
+    const startRecordBtn = this.shadowRoot.querySelector('#start-recording-btn');
+    const stopRecordBtn = this.shadowRoot.querySelector('#stop-recording-btn');
 
     handle.addEventListener('click', () => this.show());
     closeBtn.addEventListener('click', () => this.hide());
@@ -243,6 +300,50 @@ export class NotificationSystem {
       this.onReport();
       this.updateMessage('Thank you. Our team will audit this page immediately.');
     });
+
+    startRecordBtn.addEventListener('click', () => {
+      if (this.onStartRecording) this.onStartRecording();
+    });
+
+    stopRecordBtn.addEventListener('click', () => {
+      if (this.onStopRecording) this.onStopRecording();
+    });
+  }
+
+  setRecordingState(state) {
+    const idleUI = this.shadowRoot.querySelector('#idle-ui');
+    const recordingUI = this.shadowRoot.querySelector('#recording-ui');
+    const uploadingUI = this.shadowRoot.querySelector('#uploading-ui');
+
+    if (idleUI) idleUI.style.display = state === 'idle' ? 'flex' : 'none';
+    if (recordingUI) recordingUI.style.display = state === 'recording' ? 'flex' : 'none';
+    if (uploadingUI) uploadingUI.style.display = state === 'uploading' ? 'flex' : 'none';
+
+    if (state === 'recording') {
+      this.startTimer();
+    } else {
+      this.stopTimer();
+    }
+  }
+
+  startTimer() {
+    let seconds = 0;
+    const timerEl = this.shadowRoot.querySelector('#recording-timer');
+    if (this.timerInterval) clearInterval(this.timerInterval);
+
+    this.timerInterval = setInterval(() => {
+      seconds++;
+      const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const secs = (seconds % 60).toString().padStart(2, '0');
+      if (timerEl) timerEl.textContent = `${mins}:${secs}`;
+    }, 1000);
+  }
+
+  stopTimer() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
   }
 
   show(score) {
@@ -250,6 +351,7 @@ export class NotificationSystem {
     const handle = this.shadowRoot.querySelector('#ta-handle');
 
     if (sidebar) {
+      this.setRecordingState('idle'); // Always start with idle
       if (score !== undefined) this.updateScore(score);
       sidebar.classList.add('visible');
       if (handle) handle.style.display = 'none';
@@ -272,6 +374,7 @@ export class NotificationSystem {
     const handle = this.shadowRoot.querySelector('#ta-handle');
 
     if (sidebar) {
+      this.stopTimer();
       sidebar.classList.remove('visible');
       if (handle) handle.style.display = 'block';
       document.body.classList.remove('trapalert-open');
