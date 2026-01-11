@@ -244,6 +244,35 @@ class NotificationSystem {
         50% { opacity: 0.4; transform: scale(1.2); }
         100% { opacity: 1; transform: scale(1); }
       }
+
+      .trapalert-captions {
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.4;
+        color: #fff;
+        max-height: 120px;
+        overflow-y: auto;
+        width: 100%;
+        border-left: 3px solid var(--ta-blue);
+        display: none;
+      }
+
+      .trapalert-captions.active {
+        display: block;
+      }
+
+      .caption-text {
+        opacity: 0.9;
+      }
+
+      .caption-text:empty::before {
+        content: 'Listening for voice...';
+        opacity: 0.5;
+        font-style: italic;
+      }
     `;
     this.shadowRoot.appendChild(style);
     const handle = document.createElement("button");
@@ -288,6 +317,9 @@ class NotificationSystem {
         <div class="trapalert-timer" id="recording-timer">00:00</div>
         <div class="trapalert-message" style="text-align: center; margin-top: 10px;">
            Recording in progress...<br>Explain the issue while you navigate.
+        </div>
+        <div class="trapalert-captions" id="captions-container">
+          <div class="caption-text" id="caption-body"></div>
         </div>
         <button class="trapalert-button" id="stop-recording-btn" style="background: #ff4d4d; color: white; width: 100%; margin-top: 20px;">
           ⏹️ Stop and Send
@@ -343,6 +375,12 @@ class NotificationSystem {
       this.startTimer();
     } else {
       this.stopTimer();
+      if (state === "idle") {
+        const container = this.shadowRoot.querySelector("#captions-container");
+        const body = this.shadowRoot.querySelector("#caption-body");
+        if (container) container.classList.remove("active");
+        if (body) body.textContent = "";
+      }
     }
   }
   startTimer() {
@@ -405,6 +443,15 @@ class NotificationSystem {
     const messageEl = this.shadowRoot.querySelector(".trapalert-message");
     if (messageEl) {
       messageEl.textContent = message;
+    }
+  }
+  updateCaptions(text) {
+    const container = this.shadowRoot.querySelector("#captions-container");
+    const body = this.shadowRoot.querySelector("#caption-body");
+    if (container && body) {
+      container.classList.add("active");
+      body.textContent = text;
+      container.scrollTop = container.scrollHeight;
     }
   }
   playNotificationSound() {
@@ -779,6 +826,8 @@ class TrapAlert {
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.domSnapshot = null;
+    this.recognition = null;
+    this.finalTranscript = "";
     this.focusHistory = [];
     this.escPressHistory = [];
     this.lastProductiveTime = Date.now();
@@ -888,6 +937,7 @@ class TrapAlert {
       this.mediaRecorder.start();
       this.ui.setRecordingState("recording");
       console.log("[TrapAlert] Recording started.");
+      this.setupSpeechRecognition();
       screenStream.getVideoTracks()[0].onended = () => {
         if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
           this.mediaRecorder.stop();
@@ -903,6 +953,51 @@ class TrapAlert {
       this.mediaRecorder.stop();
       this.ui.setRecordingState("uploading");
     }
+    if (this.recognition) {
+      this.recognition.stop();
+    }
+  }
+  setupSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("[TrapAlert] Speech Recognition not supported in this browser.");
+      return;
+    }
+    this.recognition = new SpeechRecognition();
+    this.recognition.continuous = true;
+    this.recognition.interimResults = true;
+    this.recognition.lang = "en-US";
+    this.recognition.onresult = (event) => {
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          this.finalTranscript += transcript + " ";
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      this.ui.updateCaptions(this.finalTranscript + interimTranscript);
+    };
+    this.recognition.onerror = (event) => {
+      console.error("[TrapAlert] Speech Recognition Error:", event.error);
+    };
+    this.recognition.onend = () => {
+      console.log("[TrapAlert] Speech Recognition ended.");
+      if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+        try {
+          this.recognition.start();
+        } catch (e) {
+          console.log("Could not restart recognition:", e);
+        }
+      }
+    };
+    try {
+      this.finalTranscript = "";
+      this.recognition.start();
+    } catch (err) {
+      console.error("[TrapAlert] Failed to start Speech Recognition:", err);
+    }
   }
   async finalizeRecording() {
     const videoBlob = new Blob(this.recordedChunks, { type: "video/webm" });
@@ -911,6 +1006,7 @@ class TrapAlert {
     formData.append("dom", this.domSnapshot);
     formData.append("metadata", JSON.stringify(this.getBrowserMetadata()));
     formData.append("struggleScore", this.struggleScore.get());
+    formData.append("transcript", this.finalTranscript.trim());
     formData.append("tenantId", this.tenantId);
     console.log("[TrapAlert] Dispatching multi-modal feedback...");
     try {

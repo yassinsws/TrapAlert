@@ -28,6 +28,8 @@ export class TrapAlert {
         this.mediaRecorder = null;
         this.recordedChunks = [];
         this.domSnapshot = null;
+        this.recognition = null;
+        this.finalTranscript = '';
 
         // Watchers state
         this.focusHistory = [];
@@ -171,6 +173,9 @@ export class TrapAlert {
             this.ui.setRecordingState('recording');
             console.log('[TrapAlert] Recording started.');
 
+            // 4. Start Speech Recognition for Live Captions
+            this.setupSpeechRecognition();
+
             // Sync: If the user stops screen sharing via browser native UI
             screenStream.getVideoTracks()[0].onended = () => {
                 if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -189,6 +194,60 @@ export class TrapAlert {
             this.mediaRecorder.stop();
             this.ui.setRecordingState('uploading');
         }
+        if (this.recognition) {
+            this.recognition.stop();
+        }
+    }
+
+    setupSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn('[TrapAlert] Speech Recognition not supported in this browser.');
+            return;
+        }
+
+        this.recognition = new SpeechRecognition();
+        this.recognition.continuous = true;
+        this.recognition.interimResults = true;
+        this.recognition.lang = 'en-US';
+
+        this.recognition.onresult = (event) => {
+            let interimTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    this.finalTranscript += transcript + ' ';
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+
+            this.ui.updateCaptions(this.finalTranscript + interimTranscript);
+        };
+
+        this.recognition.onerror = (event) => {
+            console.error('[TrapAlert] Speech Recognition Error:', event.error);
+        };
+
+        this.recognition.onend = () => {
+            console.log('[TrapAlert] Speech Recognition ended.');
+            // Restart if we are still recording (handle timeouts)
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                try {
+                    this.recognition.start();
+                } catch (e) {
+                    console.log('Could not restart recognition:', e);
+                }
+            }
+        };
+
+        try {
+            this.finalTranscript = ''; // Reset for new recording
+            this.recognition.start();
+        } catch (err) {
+            console.error('[TrapAlert] Failed to start Speech Recognition:', err);
+        }
     }
 
     async finalizeRecording() {
@@ -199,6 +258,7 @@ export class TrapAlert {
         formData.append('dom', this.domSnapshot);
         formData.append('metadata', JSON.stringify(this.getBrowserMetadata()));
         formData.append('struggleScore', this.struggleScore.get());
+        formData.append('transcript', this.finalTranscript.trim()); // Add transcript
         formData.append('tenantId', this.tenantId);
 
         console.log('[TrapAlert] Dispatching multi-modal feedback...');

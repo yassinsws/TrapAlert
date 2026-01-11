@@ -213,6 +213,35 @@ export class NotificationSystem {
         50% { opacity: 0.4; transform: scale(1.2); }
         100% { opacity: 1; transform: scale(1); }
       }
+
+      .trapalert-captions {
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.4;
+        color: #fff;
+        max-height: 120px;
+        overflow-y: auto;
+        width: 100%;
+        border-left: 3px solid var(--ta-blue);
+        display: none;
+      }
+
+      .trapalert-captions.active {
+        display: block;
+      }
+
+      .caption-text {
+        opacity: 0.9;
+      }
+
+      .caption-text:empty::before {
+        content: 'Listening for voice...';
+        opacity: 0.5;
+        font-style: italic;
+      }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -260,6 +289,9 @@ export class NotificationSystem {
         <div class="trapalert-timer" id="recording-timer">00:00</div>
         <div class="trapalert-message" style="text-align: center; margin-top: 10px;">
            Recording in progress...<br>Explain the issue while you navigate.
+        </div>
+        <div class="trapalert-captions" id="captions-container">
+          <div class="caption-text" id="caption-body"></div>
         </div>
         <button class="trapalert-button" id="stop-recording-btn" style="background: #ff4d4d; color: white; width: 100%; margin-top: 20px;">
           ⏹️ Stop and Send
@@ -323,6 +355,12 @@ export class NotificationSystem {
       this.startTimer();
     } else {
       this.stopTimer();
+      if (state === 'idle') {
+        const container = this.shadowRoot.querySelector('#captions-container');
+        const body = this.shadowRoot.querySelector('#caption-body');
+        if (container) container.classList.remove('active');
+        if (body) body.textContent = '';
+      }
     }
   }
 
@@ -399,6 +437,16 @@ export class NotificationSystem {
     const messageEl = this.shadowRoot.querySelector('.trapalert-message');
     if (messageEl) {
       messageEl.textContent = message;
+    }
+  }
+
+  updateCaptions(text) {
+    const container = this.shadowRoot.querySelector('#captions-container');
+    const body = this.shadowRoot.querySelector('#caption-body');
+    if (container && body) {
+      container.classList.add('active');
+      body.textContent = text;
+      container.scrollTop = container.scrollHeight;
     }
   }
 
