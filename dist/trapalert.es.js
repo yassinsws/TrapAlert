@@ -61,156 +61,204 @@ class NotificationSystem {
   createSidebar() {
     const style = document.createElement("style");
     style.textContent = `
+      :host {
+        --ta-blue: #667eea;
+        --ta-purple: #764ba2;
+        --ta-sidebar-width: 350px;
+      }
+
       .trapalert-sidebar {
         position: fixed;
         top: 0;
-        right: -400px;
-        width: 350px;
+        right: calc(var(--ta-sidebar-width) * -1);
+        width: var(--ta-sidebar-width);
         height: 100vh;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
-        transition: right 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        background: linear-gradient(135deg, #1a1c2c 0%, #4a192c 100%);
+        box-shadow: -4px 0 30px rgba(0, 0, 0, 0.5);
+        transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 999999;
         color: white;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        font-family: 'Outfit', sans-serif;
         display: flex;
         flex-direction: column;
-        padding: 30px 25px;
+        padding: 40px 30px;
         box-sizing: border-box;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
       }
 
       .trapalert-sidebar.visible {
         right: 0;
       }
 
+      .trapalert-handle {
+        position: fixed;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        background: #1a1c2c;
+        color: white;
+        padding: 15px 8px;
+        border-radius: 8px 0 0 8px;
+        cursor: pointer;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-right: none;
+        transition: padding 0.2s;
+        z-index: 999998;
+        box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+      }
+
+      .trapalert-handle:hover {
+        padding-right: 15px;
+        background: #2a2c3c;
+      }
+
       .trapalert-header {
         font-size: 24px;
         font-weight: 700;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
       }
 
       .trapalert-icon {
-        width: 32px;
-        height: 32px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 20px;
+        font-size: 22px;
       }
 
       .trapalert-message {
-        font-size: 16px;
+        font-size: 15px;
         line-height: 1.6;
-        margin-bottom: 25px;
-        opacity: 0.95;
+        margin-bottom: 30px;
+        color: rgba(255, 255, 255, 0.8);
       }
 
       .trapalert-score {
-        background: rgba(255, 255, 255, 0.15);
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        backdrop-filter: blur(10px);
+        background: rgba(0, 0, 0, 0.3);
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
       }
 
       .trapalert-score-label {
-        font-size: 12px;
+        font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        opacity: 0.8;
-        margin-bottom: 5px;
+        letter-spacing: 1.5px;
+        opacity: 0.6;
+        margin-bottom: 8px;
       }
 
       .trapalert-score-value {
-        font-size: 36px;
-        font-weight: 700;
+        font-size: 42px;
+        font-weight: 800;
+        background: linear-gradient(to right, #fff, #aab);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
       }
 
       .trapalert-button {
         background: white;
-        color: #667eea;
+        color: #1a1c2c;
         border: none;
-        padding: 14px 24px;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: 600;
+        padding: 16px 24px;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 700;
         cursor: pointer;
-        transition: all 0.2s;
-        margin-bottom: 10px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-bottom: 12px;
       }
 
       .trapalert-button:hover {
+        background: #f0f0f0;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-      }
-
-      .trapalert-button:active {
-        transform: translateY(0);
       }
 
       .trapalert-button-secondary {
-        background: transparent;
+        background: rgba(255, 255, 255, 0.1);
         color: white;
-        border: 2px solid rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .trapalert-button-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
       }
 
       .trapalert-close {
         position: absolute;
         top: 20px;
         right: 20px;
-        background: rgba(255, 255, 255, 0.2);
-        border: none;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         color: white;
         width: 32px;
         height: 32px;
         border-radius: 50%;
         cursor: pointer;
-        font-size: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background 0.2s;
+        transition: all 0.2s;
       }
 
       .trapalert-close:hover {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.2);
+        transform: rotate(90deg);
       }
     `;
     this.shadowRoot.appendChild(style);
-    const sidebar = document.createElement("div");
+    const handle = document.createElement("button");
+    handle.className = "trapalert-handle";
+    handle.id = "ta-handle";
+    handle.setAttribute("aria-label", "Open TrapAlert Reporting Tool");
+    handle.textContent = "Report Barrier";
+    this.shadowRoot.appendChild(handle);
+    const sidebar = document.createElement("aside");
     sidebar.className = "trapalert-sidebar";
+    sidebar.setAttribute("role", "complementary");
+    sidebar.setAttribute("aria-label", "TrapAlert Accessibility Tool");
     sidebar.innerHTML = `
-      <button class="trapalert-close" aria-label="Close notification">×</button>
+      <button class="trapalert-close" id="ta-close" aria-label="Close TrapAlert">×</button>
       <div class="trapalert-header">
-        <div class="trapalert-icon">⚠️</div>
+        <div class="trapalert-icon">🛡️</div>
         <span>TrapAlert</span>
       </div>
       <div class="trapalert-message">
-        We've detected potential accessibility barriers on this page. Your feedback helps make the web better for everyone.
+        We've detected potential navigation barriers. Help us improve the experience for everyone.
       </div>
       <div class="trapalert-score">
-        <div class="trapalert-score-label">Frustration Score</div>
+        <div class="trapalert-score-label">Frustration Intensity</div>
         <div class="trapalert-score-value" id="score-display">0</div>
       </div>
       <button class="trapalert-button" id="report-btn">
-        Report Accessibility Issue
+        Submit High-Priority Report
       </button>
       <button class="trapalert-button trapalert-button-secondary" id="dismiss-btn">
-        Dismiss
+        Keep Browsing
       </button>
     `;
     this.shadowRoot.appendChild(sidebar);
     this.bindEvents();
   }
   bindEvents() {
-    const closeBtn = this.shadowRoot.querySelector(".trapalert-close");
+    const handle = this.shadowRoot.querySelector("#ta-handle");
+    const closeBtn = this.shadowRoot.querySelector("#ta-close");
     const reportBtn = this.shadowRoot.querySelector("#report-btn");
     const dismissBtn = this.shadowRoot.querySelector("#dismiss-btn");
+    handle.addEventListener("click", () => this.show());
     closeBtn.addEventListener("click", () => this.hide());
     dismissBtn.addEventListener("click", () => {
       this.hide();
@@ -218,22 +266,32 @@ class NotificationSystem {
     });
     reportBtn.addEventListener("click", () => {
       this.onReport();
-      this.updateMessage("Thank you for reporting. Your feedback helps improve accessibility.");
+      this.updateMessage("Thank you. Our team will audit this page immediately.");
     });
   }
   show(score) {
     const sidebar = this.shadowRoot.querySelector(".trapalert-sidebar");
+    const handle = this.shadowRoot.querySelector("#ta-handle");
     if (sidebar) {
-      this.updateScore(score);
+      if (score !== void 0) this.updateScore(score);
       sidebar.classList.add("visible");
+      if (handle) handle.style.display = "none";
+      document.body.classList.add("trapalert-open");
+      setTimeout(() => {
+        const closeBtn = this.shadowRoot.querySelector("#ta-close");
+        if (closeBtn) closeBtn.focus();
+      }, 300);
       this.playNotificationSound();
-      this.announce("TrapAlert: Accessibility barrier detected. Press Alt+T to report.");
+      this.announce("TrapAlert: Accessibility barrier detected. Sidebar opened.");
     }
   }
   hide() {
     const sidebar = this.shadowRoot.querySelector(".trapalert-sidebar");
+    const handle = this.shadowRoot.querySelector("#ta-handle");
     if (sidebar) {
       sidebar.classList.remove("visible");
+      if (handle) handle.style.display = "block";
+      document.body.classList.remove("trapalert-open");
     }
   }
   updateScore(score) {
@@ -620,6 +678,40 @@ class TrapAlert {
     }, 6e4);
   }
   setupUI() {
+    const globalStyle = document.createElement("style");
+    globalStyle.textContent = `
+            body.trapalert-open {
+                margin-right: 350px;
+                transition: margin 0.3s ease;
+                overflow-x: hidden;
+            }
+            .ta-skip-link {
+                position: absolute;
+                top: -100px;
+                left: 0;
+                background: #1a1c2c;
+                color: white;
+                padding: 15px 25px;
+                z-index: 1000000;
+                text-decoration: none;
+                font-weight: bold;
+                border-bottom: 2px solid #fff;
+                transition: top 0.2s;
+            }
+            .ta-skip-link:focus {
+                top: 0;
+            }
+        `;
+    document.head.appendChild(globalStyle);
+    const skipLink = document.createElement("a");
+    skipLink.href = "#";
+    skipLink.className = "ta-skip-link";
+    skipLink.textContent = "Skip to Report Accessibility Issue with TrapAlert";
+    skipLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.ui.show(this.struggleScore.get());
+    });
+    document.body.prepend(skipLink);
     const container = document.createElement("div");
     container.id = "trapalert-container";
     container.setAttribute("aria-hidden", "false");

@@ -64,6 +64,45 @@ export class TrapAlert {
     }
 
     setupUI() {
+        // 1. Inject Global Layout Shift Styles
+        const globalStyle = document.createElement('style');
+        globalStyle.textContent = `
+            body.trapalert-open {
+                margin-right: 350px;
+                transition: margin 0.3s ease;
+                overflow-x: hidden;
+            }
+            .ta-skip-link {
+                position: absolute;
+                top: -100px;
+                left: 0;
+                background: #1a1c2c;
+                color: white;
+                padding: 15px 25px;
+                z-index: 1000000;
+                text-decoration: none;
+                font-weight: bold;
+                border-bottom: 2px solid #fff;
+                transition: top 0.2s;
+            }
+            .ta-skip-link:focus {
+                top: 0;
+            }
+        `;
+        document.head.appendChild(globalStyle);
+
+        // 2. Inject Skip Link (Discovery for Screen Readers)
+        const skipLink = document.createElement('a');
+        skipLink.href = '#';
+        skipLink.className = 'ta-skip-link';
+        skipLink.textContent = 'Skip to Report Accessibility Issue with TrapAlert';
+        skipLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.ui.show(this.struggleScore.get());
+        });
+        document.body.prepend(skipLink);
+
+        // 3. Setup Shadow DOM Container
         const container = document.createElement('div');
         container.id = 'trapalert-container';
         container.setAttribute('aria-hidden', 'false');
