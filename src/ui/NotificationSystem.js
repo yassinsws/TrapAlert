@@ -214,33 +214,26 @@ export class NotificationSystem {
         100% { opacity: 1; transform: scale(1); }
       }
 
-      .trapalert-captions {
-        margin-top: 20px;
-        padding: 15px;
-        background: rgba(0, 0, 0, 0.4);
-        border-radius: 8px;
-        font-size: 14px;
-        line-height: 1.4;
-        color: #fff;
-        max-height: 120px;
-        overflow-y: auto;
+
+
+      .trapalert-input {
         width: 100%;
-        border-left: 3px solid var(--ta-blue);
-        display: none;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 15px;
+        color: white;
+        font-family: inherit;
+        font-size: 14px;
+        resize: vertical;
+        box-sizing: border-box;
       }
 
-      .trapalert-captions.active {
-        display: block;
-      }
-
-      .caption-text {
-        opacity: 0.9;
-      }
-
-      .caption-text:empty::before {
-        content: 'Listening for voice...';
-        opacity: 0.5;
-        font-style: italic;
+      .trapalert-input:focus {
+        outline: none;
+        border-color: var(--ta-blue);
+        background: rgba(0, 0, 0, 0.5);
       }
     `;
     this.shadowRoot.appendChild(style);
@@ -269,15 +262,12 @@ export class NotificationSystem {
         <div class="trapalert-message">
           We've detected potential navigation barriers. Help us improve the experience for everyone.
         </div>
-        <div class="trapalert-score">
-          <div class="trapalert-score-label">Frustration Intensity</div>
-          <div class="trapalert-score-value" id="score-display">0</div>
-        </div>
+
+
+        <textarea id="issue-description" class="trapalert-input" rows="3" placeholder="Describe the issue (optional)..."></textarea>
+
         <button class="trapalert-button" id="start-recording-btn">
           🎥 Record Feedback (Voice + Screen)
-        </button>
-        <button class="trapalert-button trapalert-button-secondary" id="report-btn">
-          Quick Audit Report
         </button>
         <button class="trapalert-button trapalert-button-secondary" id="dismiss-btn">
           Keep Browsing
@@ -288,10 +278,7 @@ export class NotificationSystem {
       <div id="recording-ui" style="display: none; flex-direction: column; align-items: center;">
         <div class="trapalert-timer" id="recording-timer">00:00</div>
         <div class="trapalert-message" style="text-align: center; margin-top: 10px;">
-           Recording in progress...<br>Explain the issue while you navigate.
-        </div>
-        <div class="trapalert-captions" id="captions-container">
-          <div class="caption-text" id="caption-body"></div>
+           Recording in progress...
         </div>
         <button class="trapalert-button" id="stop-recording-btn" style="background: #ff4d4d; color: white; width: 100%; margin-top: 20px;">
           ⏹️ Stop and Send
@@ -317,7 +304,6 @@ export class NotificationSystem {
   bindEvents() {
     const handle = this.shadowRoot.querySelector('#ta-handle');
     const closeBtn = this.shadowRoot.querySelector('#ta-close');
-    const reportBtn = this.shadowRoot.querySelector('#report-btn');
     const dismissBtn = this.shadowRoot.querySelector('#dismiss-btn');
     const startRecordBtn = this.shadowRoot.querySelector('#start-recording-btn');
     const stopRecordBtn = this.shadowRoot.querySelector('#stop-recording-btn');
@@ -327,10 +313,6 @@ export class NotificationSystem {
     dismissBtn.addEventListener('click', () => {
       this.hide();
       this.onDismiss();
-    });
-    reportBtn.addEventListener('click', () => {
-      this.onReport();
-      this.updateMessage('Thank you. Our team will audit this page immediately.');
     });
 
     startRecordBtn.addEventListener('click', () => {
@@ -355,12 +337,6 @@ export class NotificationSystem {
       this.startTimer();
     } else {
       this.stopTimer();
-      if (state === 'idle') {
-        const container = this.shadowRoot.querySelector('#captions-container');
-        const body = this.shadowRoot.querySelector('#caption-body');
-        if (container) container.classList.remove('active');
-        if (body) body.textContent = '';
-      }
     }
   }
 
@@ -390,7 +366,6 @@ export class NotificationSystem {
 
     if (sidebar) {
       this.setRecordingState('idle'); // Always start with idle
-      if (score !== undefined) this.updateScore(score);
       sidebar.classList.add('visible');
       if (handle) handle.style.display = 'none';
 
@@ -402,7 +377,6 @@ export class NotificationSystem {
         if (closeBtn) closeBtn.focus();
       }, 300);
 
-      this.playNotificationSound();
       this.announce('TrapAlert: Accessibility barrier detected. Sidebar opened.');
     }
   }
@@ -416,13 +390,6 @@ export class NotificationSystem {
       sidebar.classList.remove('visible');
       if (handle) handle.style.display = 'block';
       document.body.classList.remove('trapalert-open');
-    }
-  }
-
-  updateScore(score) {
-    const scoreDisplay = this.shadowRoot.querySelector('#score-display');
-    if (scoreDisplay) {
-      scoreDisplay.textContent = Math.round(score);
     }
   }
 
@@ -440,28 +407,8 @@ export class NotificationSystem {
     }
   }
 
-  updateCaptions(text) {
-    const container = this.shadowRoot.querySelector('#captions-container');
-    const body = this.shadowRoot.querySelector('#caption-body');
-    if (container && body) {
-      container.classList.add('active');
-      body.textContent = text;
-      container.scrollTop = container.scrollHeight;
-    }
-  }
-
-  playNotificationSound() {
-    // Base64 encoded short beep sound (data URI)
-    const audioData = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==';
-
-    try {
-      const audio = new Audio(audioData);
-      audio.volume = 0.3;
-      audio.play().catch(err => {
-        console.warn('[TrapAlert] Could not play notification sound:', err);
-      });
-    } catch (err) {
-      console.warn('[TrapAlert] Audio not supported:', err);
-    }
+  getDescription() {
+    const input = this.shadowRoot.querySelector('#issue-description');
+    return input ? input.value : '';
   }
 }

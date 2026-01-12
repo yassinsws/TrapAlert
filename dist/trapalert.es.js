@@ -245,33 +245,26 @@ class NotificationSystem {
         100% { opacity: 1; transform: scale(1); }
       }
 
-      .trapalert-captions {
-        margin-top: 20px;
-        padding: 15px;
-        background: rgba(0, 0, 0, 0.4);
-        border-radius: 8px;
-        font-size: 14px;
-        line-height: 1.4;
-        color: #fff;
-        max-height: 120px;
-        overflow-y: auto;
+
+
+      .trapalert-input {
         width: 100%;
-        border-left: 3px solid var(--ta-blue);
-        display: none;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 15px;
+        color: white;
+        font-family: inherit;
+        font-size: 14px;
+        resize: vertical;
+        box-sizing: border-box;
       }
 
-      .trapalert-captions.active {
-        display: block;
-      }
-
-      .caption-text {
-        opacity: 0.9;
-      }
-
-      .caption-text:empty::before {
-        content: 'Listening for voice...';
-        opacity: 0.5;
-        font-style: italic;
+      .trapalert-input:focus {
+        outline: none;
+        border-color: var(--ta-blue);
+        background: rgba(0, 0, 0, 0.5);
       }
     `;
     this.shadowRoot.appendChild(style);
@@ -297,15 +290,12 @@ class NotificationSystem {
         <div class="trapalert-message">
           We've detected potential navigation barriers. Help us improve the experience for everyone.
         </div>
-        <div class="trapalert-score">
-          <div class="trapalert-score-label">Frustration Intensity</div>
-          <div class="trapalert-score-value" id="score-display">0</div>
-        </div>
+
+
+        <textarea id="issue-description" class="trapalert-input" rows="3" placeholder="Describe the issue (optional)..."></textarea>
+
         <button class="trapalert-button" id="start-recording-btn">
           🎥 Record Feedback (Voice + Screen)
-        </button>
-        <button class="trapalert-button trapalert-button-secondary" id="report-btn">
-          Quick Audit Report
         </button>
         <button class="trapalert-button trapalert-button-secondary" id="dismiss-btn">
           Keep Browsing
@@ -316,10 +306,7 @@ class NotificationSystem {
       <div id="recording-ui" style="display: none; flex-direction: column; align-items: center;">
         <div class="trapalert-timer" id="recording-timer">00:00</div>
         <div class="trapalert-message" style="text-align: center; margin-top: 10px;">
-           Recording in progress...<br>Explain the issue while you navigate.
-        </div>
-        <div class="trapalert-captions" id="captions-container">
-          <div class="caption-text" id="caption-body"></div>
+           Recording in progress...
         </div>
         <button class="trapalert-button" id="stop-recording-btn" style="background: #ff4d4d; color: white; width: 100%; margin-top: 20px;">
           ⏹️ Stop and Send
@@ -343,7 +330,6 @@ class NotificationSystem {
   bindEvents() {
     const handle = this.shadowRoot.querySelector("#ta-handle");
     const closeBtn = this.shadowRoot.querySelector("#ta-close");
-    const reportBtn = this.shadowRoot.querySelector("#report-btn");
     const dismissBtn = this.shadowRoot.querySelector("#dismiss-btn");
     const startRecordBtn = this.shadowRoot.querySelector("#start-recording-btn");
     const stopRecordBtn = this.shadowRoot.querySelector("#stop-recording-btn");
@@ -352,10 +338,6 @@ class NotificationSystem {
     dismissBtn.addEventListener("click", () => {
       this.hide();
       this.onDismiss();
-    });
-    reportBtn.addEventListener("click", () => {
-      this.onReport();
-      this.updateMessage("Thank you. Our team will audit this page immediately.");
     });
     startRecordBtn.addEventListener("click", () => {
       if (this.onStartRecording) this.onStartRecording();
@@ -375,12 +357,6 @@ class NotificationSystem {
       this.startTimer();
     } else {
       this.stopTimer();
-      if (state === "idle") {
-        const container = this.shadowRoot.querySelector("#captions-container");
-        const body = this.shadowRoot.querySelector("#caption-body");
-        if (container) container.classList.remove("active");
-        if (body) body.textContent = "";
-      }
     }
   }
   startTimer() {
@@ -405,7 +381,6 @@ class NotificationSystem {
     const handle = this.shadowRoot.querySelector("#ta-handle");
     if (sidebar) {
       this.setRecordingState("idle");
-      if (score !== void 0) this.updateScore(score);
       sidebar.classList.add("visible");
       if (handle) handle.style.display = "none";
       document.body.classList.add("trapalert-open");
@@ -413,7 +388,6 @@ class NotificationSystem {
         const closeBtn = this.shadowRoot.querySelector("#ta-close");
         if (closeBtn) closeBtn.focus();
       }, 300);
-      this.playNotificationSound();
       this.announce("TrapAlert: Accessibility barrier detected. Sidebar opened.");
     }
   }
@@ -425,12 +399,6 @@ class NotificationSystem {
       sidebar.classList.remove("visible");
       if (handle) handle.style.display = "block";
       document.body.classList.remove("trapalert-open");
-    }
-  }
-  updateScore(score) {
-    const scoreDisplay = this.shadowRoot.querySelector("#score-display");
-    if (scoreDisplay) {
-      scoreDisplay.textContent = Math.round(score);
     }
   }
   announce(message) {
@@ -445,26 +413,9 @@ class NotificationSystem {
       messageEl.textContent = message;
     }
   }
-  updateCaptions(text) {
-    const container = this.shadowRoot.querySelector("#captions-container");
-    const body = this.shadowRoot.querySelector("#caption-body");
-    if (container && body) {
-      container.classList.add("active");
-      body.textContent = text;
-      container.scrollTop = container.scrollHeight;
-    }
-  }
-  playNotificationSound() {
-    const audioData = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==";
-    try {
-      const audio = new Audio(audioData);
-      audio.volume = 0.3;
-      audio.play().catch((err) => {
-        console.warn("[TrapAlert] Could not play notification sound:", err);
-      });
-    } catch (err) {
-      console.warn("[TrapAlert] Audio not supported:", err);
-    }
+  getDescription() {
+    const input = this.shadowRoot.querySelector("#issue-description");
+    return input ? input.value : "";
   }
 }
 function getElementSelector(element) {
@@ -815,7 +766,7 @@ class TrapAlert {
       throw new Error("TrapAlert requires tenantId and collectorEndpoint");
     }
     this.tenantId = config.tenantId;
-    this.collectorEndpoint = config.collectorEndpoint;
+    this.collectorEndpoint = config.collectorEndpoint.replace(/\/+$/, "");
     this.struggleScore = new StruggleScore();
     this.behavioralTrace = [];
     this.maxTraceLength = 20;
@@ -826,8 +777,10 @@ class TrapAlert {
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.domSnapshot = null;
-    this.recognition = null;
-    this.finalTranscript = "";
+    this.triggerSnapshot = null;
+    this.domSnapshot = null;
+    this.triggerSnapshot = null;
+    this.audioContext = null;
     this.focusHistory = [];
     this.escPressHistory = [];
     this.lastProductiveTime = Date.now();
@@ -909,22 +862,80 @@ class TrapAlert {
   }
   async handleStartRecording() {
     try {
-      this.domSnapshot = captureDOMSnapshot();
-      console.log("[TrapAlert] DOM Snapshot captured.");
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true
-      });
-      let combinedStream = screenStream;
+      let screenStream;
       try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const tracks = [...screenStream.getVideoTracks(), ...audioStream.getAudioTracks()];
-        combinedStream = new MediaStream(tracks);
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true
+        });
       } catch (err) {
-        console.warn("[TrapAlert] Microphone access denied, recording screen without audio.");
+        console.error("[TrapAlert] Screen recording permission denied or cancelled:", err);
+        throw new Error(`Screen recording permission denied: ${err.message}`);
+      }
+      if (this.triggerSnapshot) {
+        this.domSnapshot = this.triggerSnapshot;
+        console.log("[TrapAlert] Using Contextual DOM Snapshot (from trigger moment).");
+      } else {
+        this.domSnapshot = captureDOMSnapshot();
+        console.log("[TrapAlert] Captured fresh DOM Snapshot (no trigger context found).");
+      }
+      let combinedStream = screenStream;
+      let audioStream = null;
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("[TrapAlert] Microphone access granted.");
+      } catch (err) {
+        console.warn("[TrapAlert] Microphone access denied or not available:", err);
+      }
+      try {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const dest = this.audioContext.createMediaStreamDestination();
+        let hasAudio = false;
+        if (screenStream.getAudioTracks().length > 0) {
+          const source = this.audioContext.createMediaStreamSource(screenStream);
+          source.connect(dest);
+          console.log("[TrapAlert] Audio Mixing: Connected System Audio");
+          hasAudio = true;
+        }
+        if (audioStream && audioStream.getAudioTracks().length > 0) {
+          const source = this.audioContext.createMediaStreamSource(audioStream);
+          source.connect(dest);
+          console.log("[TrapAlert] Audio Mixing: Connected Microphone");
+          hasAudio = true;
+        }
+        const mixedTracks = dest.stream.getAudioTracks();
+        const tracks = [
+          ...screenStream.getVideoTracks(),
+          ...hasAudio ? mixedTracks : []
+        ];
+        console.log(`[TrapAlert] Stream tracks: ${tracks.length} (Video: ${screenStream.getVideoTracks().length}, Audio: ${hasAudio ? 1 : 0})`);
+        combinedStream = new MediaStream(tracks);
+      } catch (e) {
+        console.error("[TrapAlert] Audio Context Error:", e);
+        const tracks = [
+          ...screenStream.getVideoTracks(),
+          ...screenStream.getAudioTracks(),
+          ...audioStream ? audioStream.getAudioTracks() : []
+        ];
+        combinedStream = new MediaStream(tracks);
       }
       this.recordedChunks = [];
-      const mimeType = "video/webm;codecs=vp8,opus";
-      this.mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
+      const mimeTypes = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+        "video/mp4"
+      ];
+      let selectedMimeType = "";
+      for (const type of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          selectedMimeType = type;
+          break;
+        }
+      }
+      console.log(`[TrapAlert] Using MIME type: ${selectedMimeType || "default"}`);
+      const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+      this.mediaRecorder = new MediaRecorder(combinedStream, options);
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.recordedChunks.push(event.data);
@@ -937,12 +948,6 @@ class TrapAlert {
       this.mediaRecorder.start();
       this.ui.setRecordingState("recording");
       console.log("[TrapAlert] Recording started.");
-      this.setupSpeechRecognition();
-      screenStream.getVideoTracks()[0].onended = () => {
-        if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
-          this.mediaRecorder.stop();
-        }
-      };
     } catch (err) {
       console.error("[TrapAlert] Failed to start recording:", err);
       alert("Feedback Recording Error: Please ensure you grant Screen and Microphone permissions.");
@@ -953,50 +958,9 @@ class TrapAlert {
       this.mediaRecorder.stop();
       this.ui.setRecordingState("uploading");
     }
-    if (this.recognition) {
-      this.recognition.stop();
-    }
-  }
-  setupSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("[TrapAlert] Speech Recognition not supported in this browser.");
-      return;
-    }
-    this.recognition = new SpeechRecognition();
-    this.recognition.continuous = true;
-    this.recognition.interimResults = true;
-    this.recognition.lang = "en-US";
-    this.recognition.onresult = (event) => {
-      let interimTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          this.finalTranscript += transcript + " ";
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-      this.ui.updateCaptions(this.finalTranscript + interimTranscript);
-    };
-    this.recognition.onerror = (event) => {
-      console.error("[TrapAlert] Speech Recognition Error:", event.error);
-    };
-    this.recognition.onend = () => {
-      console.log("[TrapAlert] Speech Recognition ended.");
-      if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
-        try {
-          this.recognition.start();
-        } catch (e) {
-          console.log("Could not restart recognition:", e);
-        }
-      }
-    };
-    try {
-      this.finalTranscript = "";
-      this.recognition.start();
-    } catch (err) {
-      console.error("[TrapAlert] Failed to start Speech Recognition:", err);
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
     }
   }
   async finalizeRecording() {
@@ -1006,9 +970,18 @@ class TrapAlert {
     formData.append("dom", this.domSnapshot);
     formData.append("metadata", JSON.stringify(this.getBrowserMetadata()));
     formData.append("struggleScore", this.struggleScore.get());
-    formData.append("transcript", this.finalTranscript.trim());
+    formData.append("description", this.ui.getDescription());
     formData.append("tenantId", this.tenantId);
+    console.log(formData.get("transcript"));
     console.log("[TrapAlert] Dispatching multi-modal feedback...");
+    console.log("[TrapAlert] Payload details:");
+    for (let [key, value] of formData.entries()) {
+      if (value instanceof Blob) {
+        console.log(`- ${key}: Binary Blob (${value.size} bytes, type: ${value.type})`);
+      } else {
+        console.log(`- ${key}: ${String(value).substring(0, 100)}${String(value).length > 100 ? "..." : ""}`);
+      }
+    }
     try {
       const response = await fetch(`${this.collectorEndpoint}/feedback`, {
         method: "POST",
@@ -1028,6 +1001,7 @@ class TrapAlert {
         this.ui.setRecordingState("idle");
         this.struggleScore.reset();
         this.domSnapshot = null;
+        this.triggerSnapshot = null;
       }, 3e3);
     }
   }
@@ -1143,6 +1117,8 @@ class TrapAlert {
   handleShortcut(event) {
     if (event.altKey && event.key === "t") {
       event.preventDefault();
+      this.triggerSnapshot = captureDOMSnapshot();
+      console.log("[TrapAlert] Manual invocation: Contextual DOM Snapshot captured.");
       this.ui.show(this.struggleScore.get());
     }
   }
@@ -1171,6 +1147,10 @@ class TrapAlert {
     const secondLimit = firstLimit * 2;
     if (this.triggerLevel === 0 && score >= firstLimit) {
       console.log(`[TrapAlert] Level 1 Trigger (Score: ${score}, Threshold: ${firstLimit})`);
+      if (!this.triggerSnapshot) {
+        this.triggerSnapshot = captureDOMSnapshot();
+        console.log("[TrapAlert] Level 1 Trigger: Contextual DOM Snapshot captured.");
+      }
       this.triggerLevel = 1;
       this.notifyUser();
     } else if (this.triggerLevel === 1 && score >= secondLimit) {
@@ -1194,7 +1174,10 @@ class TrapAlert {
     this.dispatchReport();
     this.notificationShown = false;
     this.struggleScore.reset();
+    this.notificationShown = false;
+    this.struggleScore.reset();
     this.triggerLevel = 0;
+    this.triggerSnapshot = null;
   }
   dispatchReport() {
     const payload = {
@@ -1202,6 +1185,7 @@ class TrapAlert {
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       url: window.location.href,
       struggleScore: this.struggleScore.get(),
+      description: this.ui.getDescription(),
       behavioralTrace: this.behavioralTrace,
       context: this.captureContext(),
       metadata: this.getBrowserMetadata()

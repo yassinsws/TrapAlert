@@ -14,7 +14,7 @@ export class TrapAlert {
         }
 
         this.tenantId = config.tenantId;
-        this.collectorEndpoint = config.collectorEndpoint;
+        this.collectorEndpoint = config.collectorEndpoint.replace(/\/+$/, '');
         this.struggleScore = new StruggleScore();
         this.behavioralTrace = [];
         this.maxTraceLength = 20;
@@ -28,8 +28,10 @@ export class TrapAlert {
         this.mediaRecorder = null;
         this.recordedChunks = [];
         this.domSnapshot = null;
-        this.recognition = null;
-        this.finalTranscript = '';
+        this.triggerSnapshot = null;
+        this.domSnapshot = null;
+        this.triggerSnapshot = null;
+        this.audioContext = null;
 
         // Watchers state
         this.focusHistory = [];
@@ -130,32 +132,107 @@ export class TrapAlert {
 
     async handleStartRecording() {
         try {
-            // 1. Capture DOM Snapshot immediately
-            this.domSnapshot = captureDOMSnapshot();
-            console.log('[TrapAlert] DOM Snapshot captured.');
+            // 1. Get Screen Stream FIRST (Critical for User Gesture validation in Firefox)
+            // Requesting audio: true in getDisplayMedia asks for System Audio
+            let screenStream;
+            try {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: true
+                });
+            } catch (err) {
+                console.error('[TrapAlert] Screen recording permission denied or cancelled:', err);
+                // Re-throw to trigger the main catch block with a specific message
+                throw new Error(`Screen recording permission denied: ${err.message}`);
+            }
 
-            // 2. Get Screen and Audio streams
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({
-                video: true
-            });
+            // 2. Capture DOM Snapshot (can be done after stream is active)
+            if (this.triggerSnapshot) {
+                this.domSnapshot = this.triggerSnapshot;
+                console.log('[TrapAlert] Using Contextual DOM Snapshot (from trigger moment).');
+            } else {
+                this.domSnapshot = captureDOMSnapshot();
+                console.log('[TrapAlert] Captured fresh DOM Snapshot (no trigger context found).');
+            }
 
             let combinedStream = screenStream;
+            let audioStream = null;
 
+            // 3. Request Microphone (attempt, but allow recording to continue if denied)
             try {
-                // Request audio separately to merge
-                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const tracks = [...screenStream.getVideoTracks(), ...audioStream.getAudioTracks()];
-                combinedStream = new MediaStream(tracks);
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('[TrapAlert] Microphone access granted.');
             } catch (err) {
-                console.warn('[TrapAlert] Microphone access denied, recording screen without audio.');
+                console.warn('[TrapAlert] Microphone access denied or not available:', err);
+            }
+
+            // Merge tracks using Web Audio API for reliable mixing
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const dest = this.audioContext.createMediaStreamDestination();
+                let hasAudio = false;
+
+                // Add System Audio
+                if (screenStream.getAudioTracks().length > 0) {
+                    const source = this.audioContext.createMediaStreamSource(screenStream);
+                    source.connect(dest);
+                    console.log('[TrapAlert] Audio Mixing: Connected System Audio');
+                    hasAudio = true;
+                }
+
+                // Add Microphone Audio
+                if (audioStream && audioStream.getAudioTracks().length > 0) {
+                    const source = this.audioContext.createMediaStreamSource(audioStream);
+                    source.connect(dest);
+                    console.log('[TrapAlert] Audio Mixing: Connected Microphone');
+                    hasAudio = true;
+                }
+
+                const mixedTracks = dest.stream.getAudioTracks();
+
+                // Combine Video + Mixed Audio
+                const tracks = [
+                    ...screenStream.getVideoTracks(),
+                    ...(hasAudio ? mixedTracks : [])
+                ];
+
+                console.log(`[TrapAlert] Stream tracks: ${tracks.length} (Video: ${screenStream.getVideoTracks().length}, Audio: ${hasAudio ? 1 : 0})`);
+                combinedStream = new MediaStream(tracks);
+
+            } catch (e) {
+                console.error('[TrapAlert] Audio Context Error:', e);
+                // Fallback to simple merge if Web Audio fails
+                const tracks = [
+                    ...screenStream.getVideoTracks(),
+                    ...screenStream.getAudioTracks(),
+                    ...(audioStream ? audioStream.getAudioTracks() : [])
+                ];
+                combinedStream = new MediaStream(tracks);
             }
 
             // 3. Initialize MediaRecorder
             this.recordedChunks = [];
 
             // Check supported types
-            const mimeType = 'video/webm;codecs=vp8,opus';
-            this.mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
+            const mimeTypes = [
+                'video/webm;codecs=vp9,opus',
+                'video/webm;codecs=vp8,opus',
+                'video/webm',
+                'video/mp4'
+            ];
+
+            let selectedMimeType = '';
+            for (const type of mimeTypes) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    selectedMimeType = type;
+                    break;
+                }
+            }
+
+            console.log(`[TrapAlert] Using MIME type: ${selectedMimeType || 'default'}`);
+
+            const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+            this.mediaRecorder = new MediaRecorder(combinedStream, options);
 
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -173,15 +250,6 @@ export class TrapAlert {
             this.ui.setRecordingState('recording');
             console.log('[TrapAlert] Recording started.');
 
-            // 4. Start Speech Recognition for Live Captions
-            this.setupSpeechRecognition();
-
-            // Sync: If the user stops screen sharing via browser native UI
-            screenStream.getVideoTracks()[0].onended = () => {
-                if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-                    this.mediaRecorder.stop();
-                }
-            };
 
         } catch (err) {
             console.error('[TrapAlert] Failed to start recording:', err);
@@ -194,61 +262,12 @@ export class TrapAlert {
             this.mediaRecorder.stop();
             this.ui.setRecordingState('uploading');
         }
-        if (this.recognition) {
-            this.recognition.stop();
+        if (this.audioContext) {
+            this.audioContext.close();
+            this.audioContext = null;
         }
     }
 
-    setupSpeechRecognition() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            console.warn('[TrapAlert] Speech Recognition not supported in this browser.');
-            return;
-        }
-
-        this.recognition = new SpeechRecognition();
-        this.recognition.continuous = true;
-        this.recognition.interimResults = true;
-        this.recognition.lang = 'en-US';
-
-        this.recognition.onresult = (event) => {
-            let interimTranscript = '';
-
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    this.finalTranscript += transcript + ' ';
-                } else {
-                    interimTranscript += transcript;
-                }
-            }
-
-            this.ui.updateCaptions(this.finalTranscript + interimTranscript);
-        };
-
-        this.recognition.onerror = (event) => {
-            console.error('[TrapAlert] Speech Recognition Error:', event.error);
-        };
-
-        this.recognition.onend = () => {
-            console.log('[TrapAlert] Speech Recognition ended.');
-            // Restart if we are still recording (handle timeouts)
-            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-                try {
-                    this.recognition.start();
-                } catch (e) {
-                    console.log('Could not restart recognition:', e);
-                }
-            }
-        };
-
-        try {
-            this.finalTranscript = ''; // Reset for new recording
-            this.recognition.start();
-        } catch (err) {
-            console.error('[TrapAlert] Failed to start Speech Recognition:', err);
-        }
-    }
 
     async finalizeRecording() {
         const videoBlob = new Blob(this.recordedChunks, { type: 'video/webm' });
@@ -258,10 +277,22 @@ export class TrapAlert {
         formData.append('dom', this.domSnapshot);
         formData.append('metadata', JSON.stringify(this.getBrowserMetadata()));
         formData.append('struggleScore', this.struggleScore.get());
-        formData.append('transcript', this.finalTranscript.trim()); // Add transcript
+        formData.append('description', this.ui.getDescription());
         formData.append('tenantId', this.tenantId);
 
+        console.log(formData.get("transcript"));
+
         console.log('[TrapAlert] Dispatching multi-modal feedback...');
+
+        // Debug: Log payload details
+        console.log('[TrapAlert] Payload details:');
+        for (let [key, value] of formData.entries()) {
+            if (value instanceof Blob) {
+                console.log(`- ${key}: Binary Blob (${value.size} bytes, type: ${value.type})`);
+            } else {
+                console.log(`- ${key}: ${String(value).substring(0, 100)}${String(value).length > 100 ? '...' : ''}`);
+            }
+        }
 
         try {
             const response = await fetch(`${this.collectorEndpoint}/feedback`, {
@@ -283,6 +314,7 @@ export class TrapAlert {
                 this.ui.setRecordingState('idle');
                 this.struggleScore.reset();
                 this.domSnapshot = null;
+                this.triggerSnapshot = null;
             }, 3000);
         }
     }
@@ -444,6 +476,9 @@ export class TrapAlert {
     handleShortcut(event) {
         if (event.altKey && event.key === 't') {
             event.preventDefault();
+            // Capture snapshot immediately on manual invocation
+            this.triggerSnapshot = captureDOMSnapshot();
+            console.log('[TrapAlert] Manual invocation: Contextual DOM Snapshot captured.');
             this.ui.show(this.struggleScore.get());
         }
     }
@@ -479,6 +514,11 @@ export class TrapAlert {
         // Level 1: Initial Trigger
         if (this.triggerLevel === 0 && score >= firstLimit) {
             console.log(`[TrapAlert] Level 1 Trigger (Score: ${score}, Threshold: ${firstLimit})`);
+            // Capture snapshot immediately on first trigger
+            if (!this.triggerSnapshot) {
+                this.triggerSnapshot = captureDOMSnapshot();
+                console.log('[TrapAlert] Level 1 Trigger: Contextual DOM Snapshot captured.');
+            }
             this.triggerLevel = 1;
             this.notifyUser();
         }
@@ -511,7 +551,10 @@ export class TrapAlert {
         this.dispatchReport();
         this.notificationShown = false;
         this.struggleScore.reset();
+        this.notificationShown = false;
+        this.struggleScore.reset();
         this.triggerLevel = 0; // Full reset on report
+        this.triggerSnapshot = null;
     }
 
     dispatchReport() {
@@ -520,6 +563,7 @@ export class TrapAlert {
             timestamp: new Date().toISOString(),
             url: window.location.href,
             struggleScore: this.struggleScore.get(),
+            description: this.ui.getDescription(),
             behavioralTrace: this.behavioralTrace,
             context: this.captureContext(),
             metadata: this.getBrowserMetadata()
